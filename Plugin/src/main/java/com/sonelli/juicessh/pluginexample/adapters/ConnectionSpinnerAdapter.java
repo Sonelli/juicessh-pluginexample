@@ -30,7 +30,7 @@ public class ConnectionSpinnerAdapter extends CursorAdapter {
 
         if(getCursor() != null){
             getCursor().moveToPosition(position);
-            int idIndex = getCursor().getColumnIndex(PluginContract.Connections.ID);
+            int idIndex = getCursor().getColumnIndex(PluginContract.Connections.COLUMN_ID);
             if(idIndex > -1){
                 id = UUID.fromString(getCursor().getString(idIndex));
             }
@@ -47,7 +47,7 @@ public class ConnectionSpinnerAdapter extends CursorAdapter {
 
     @Override
     public void bindView(View view, Context context, Cursor cursor) {
-        int nameColumn = cursor.getColumnIndex(PluginContract.Connections.NAME);
+        int nameColumn = cursor.getColumnIndex(PluginContract.Connections.COLUMN_NAME);
         if(nameColumn > -1){
             String name = cursor.getString(nameColumn);
             ((TextView) view).setText(name);

@@ -22,7 +22,6 @@ import com.sonelli.juicessh.pluginexample.loaders.ConnectionListLoader;
 import com.sonelli.juicessh.pluginlibrary.PluginClient;
 import com.sonelli.juicessh.pluginlibrary.PluginContract;
 import com.sonelli.juicessh.pluginlibrary.exceptions.ServiceNotConnectedException;
-import com.sonelli.juicessh.pluginlibrary.exceptions.WrongConnectionTypeException;
 import com.sonelli.juicessh.pluginlibrary.listeners.OnClientStartedListener;
 import com.sonelli.juicessh.pluginlibrary.listeners.OnSessionExecuteListener;
 import com.sonelli.juicessh.pluginlibrary.listeners.OnSessionFinishedListener;
@@ -38,6 +37,8 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
 
     private boolean isClientStarted = false;
     private final PluginClient client = new PluginClient();
+    private final static int JUICESSH_REQUEST_ID = 3596;
+
 
     private Button connectButton;
     private Button disconnectButton;
@@ -69,7 +70,7 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
                 if(id != null){
                     if(isClientStarted){
                         try {
-                            client.connect(MainActivity.this, id, true, MainActivity.this);
+                            client.connect(MainActivity.this, id, MainActivity.this, JUICESSH_REQUEST_ID);
                         } catch (ServiceNotConnectedException e){
                             Toast.makeText(MainActivity.this, "Could not connect to JuiceSSH Plugin Service", Toast.LENGTH_SHORT).show();
                         }
@@ -169,9 +170,9 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
 
                 // Insert a dummy connection
                 ContentValues values = new ContentValues();
-                values.put(PluginContract.Connections.ID, UUID.randomUUID().toString());
-                values.put(PluginContract.Connections.NICKNAME, "*** Test Connection ***");
-                values.put(PluginContract.Connections.ADDRESS, "test.connection.example.com");
+                values.put(PluginContract.Connections.COLUMN_ID, UUID.randomUUID().toString());
+                values.put(PluginContract.Connections.COLUMN_NICKNAME, "*** Test Connection ***");
+                values.put(PluginContract.Connections.COLUMN_ADDRESS, "test.connection.example.com");
                 Uri addedConnectionUri = getContentResolver().insert(PluginContract.Connections.CONTENT_URI, values);
                 UUID addedConnectionId = UUID.fromString(addedConnectionUri.getLastPathSegment());
 
@@ -188,8 +189,8 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
                 // First find any previously added dummy connections
                 Cursor cursor = getContentResolver().query(
                         PluginContract.Connections.CONTENT_URI,
-                        new String[]{ PluginContract.Connections.ID, PluginContract.Connections.NICKNAME },
-                        PluginContract.Connections.NICKNAME + " = ?",
+                        new String[]{ PluginContract.Connections.COLUMN_ID, PluginContract.Connections.COLUMN_ADDRESS },
+                        PluginContract.Connections.COLUMN_NICKNAME + " = ?",
                         new String[]{ "*** Test Connection ***" }, null);
 
                 while(cursor.moveToNext()){
@@ -198,7 +199,7 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
                     String connectionId = cursor.getString(0);
                     Uri connectionUri = Uri.withAppendedPath(PluginContract.Connections.CONTENT_URI, connectionId);
                     ContentValues updatedValues = new ContentValues();
-                    updatedValues.put(PluginContract.Connections.NICKNAME, "*** Updated Test Connection ***");
+                    updatedValues.put(PluginContract.Connections.COLUMN_NICKNAME, "*** Updated Test Connection ***");
                     getContentResolver().update(connectionUri, updatedValues, null, null);
 
                     String updatedMessage = String.format(getString(R.string.updated_test_connection), connectionId);
@@ -214,7 +215,7 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
              */
             case R.id.action_delete_test_connections:
                 getContentResolver().delete(PluginContract.Connections.CONTENT_URI,
-                        PluginContract.Connections.ADDRESS + " = ?",
+                        PluginContract.Connections.COLUMN_ADDRESS + " = ?",
                         new String[]{ "test.connection.example.com" });
                 Toast.makeText(this, getString(R.string.deleted_all_test_connections), Toast.LENGTH_SHORT).show();
                 return true;
@@ -231,8 +232,8 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
 
         // This is important if you want to be able to interact with JuiceSSH sessions that you
         // have started otherwise the plugin won't have access.
-        if(requestCode == PluginClient.JUICESSH_REQUEST){
-            client.gotActivityResult(resultCode, data);
+        if(requestCode == JUICESSH_REQUEST_ID){
+            client.gotActivityResult(requestCode, resultCode, data);
         }
     }
 
@@ -264,6 +265,14 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
                     final Pattern loadAvgPattern = Pattern.compile("average[s]?:\\s*([0-9.]+)"); // Heavy cpu so do out of loops.
                     client.executeCommandOnSession(sessionId, sessionKey, "uptime", new OnSessionExecuteListener() {
                         @Override
+                        public void onError(int reason, String message) {
+                            switch(reason){
+                                case PluginClient.Errors.WRONG_CONNECTION_TYPE:
+                                    Log.e(TAG, "Commands can only be executed on SSH sessions (not mosh/telnet/local)");
+                                    break;
+                            }
+                        }
+                        @Override
                         public void onCompleted(int exitCode) {
                             switch(exitCode){
                                 case 127:
@@ -286,9 +295,6 @@ public class MainActivity extends FragmentActivity implements OnSessionStartedLi
                     });
                 } catch (ServiceNotConnectedException e){
                     Log.d(TAG, "Tried to execute a command but could not connect to JuiceSSH plugin service");
-                } catch (WrongConnectionTypeException e){
-                    loadAverageTextView.setText(getString(R.string.error));
-                    Log.d(TAG, "Commands can only be executed on SSH sessions (not mosh/telnet/local)");
                 }
 
                 if(isConnected){

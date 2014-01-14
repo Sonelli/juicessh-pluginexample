@@ -18,5 +18,6 @@
     <string name="deleted_all_test_connections">Deleted test connections</string>
     <string name="updated_test_connection">Updated connection:\n%s</string>
     <string name="created_test_connection">Created connection:\n%s</string>
+    <string name="can_only_run_commands_on_ssh_connections">Error: Can only run commands on SSH connections</string>
 
 </resources>
